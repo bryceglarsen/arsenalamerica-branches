@@ -1,4 +1,5 @@
 import streamlit as st
+import pydeck as pdk
 import pandas as pd
 import logging
 
@@ -61,7 +62,47 @@ def main():
     df = df.rename(columns={'Latitude': 'latitude', 'Longitude': 'longitude'})
     df = df.astype({'latitude':'float','longitude':'float'})
     st.title('Arsenal America')
-    st.map(df, zoom=3)
+
+
+    icon_data = {
+        "url": "https://image-service.onefootball.com/transform?w=128&dpr=2&image=https://images.onefootball.com/icons/teams/164/2.png",
+        "width": 128,
+        "height":128,
+        "anchorY": 128
+    }
+
+    tooltip = {
+        "html": "<b>Branch:</b> {Branch Name} <br/> <b>Pub:</b> {Pub Name}",
+        "style": {
+                "backgroundColor": "gray",
+                "color": "white"
+        }
+    }
+
+    df['icon_data'] = pd.Series([icon_data for x in range(len(df.index))])
+    # df['icon_data'] = icon_data
+    print(df)
+    icon_layer = pdk.Layer(
+        type="IconLayer",
+        data=df,
+        get_icon="icon_data",
+        get_size=4,
+        size_scale=15,
+        get_position=["longitude", "latitude"],
+        pickable=True
+    )
+
+    view_state = pdk.data_utils.compute_view(df[["longitude", "latitude"]], 0.8)
+
+    # view = pdk.data_utils.compute_view(df[["longitude", "latitude"]], 3)
+
+    r = pdk.Deck(
+        map_style=None,
+        layers=[icon_layer],
+        initial_view_state=view_state,
+        tooltip=tooltip
+    )
+    st.pydeck_chart(r)
 
     states_df = df.groupby(by='Pub State')
     states = dict(list(states_df))
