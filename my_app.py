@@ -1,36 +1,67 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
+import logging
 
-st.title('Uber pickups in NYC')
+import os.path
 
-DATE_COLUMN = 'date/time'
-DATA_URL = ('https://s3-us-west-2.amazonaws.com/'
-            'streamlit-demo-data/uber-raw-data-sep14.csv.gz')
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
-@st.cache_data
-def load_data(nrows):
-    data = pd.read_csv(DATA_URL, nrows=nrows)
-    lowercase = lambda x: str(x).lower()
-    data.rename(lowercase, axis='columns', inplace=True)
-    data[DATE_COLUMN] = pd.to_datetime(data[DATE_COLUMN])
-    return data
+# from geopy.geocoders import Nominatim
 
-data_load_state = st.text('Loading data...')
-data = load_data(10000)
-data_load_state.text("Done! (using st.cache_data)")
+# geolocator = Nominatim(user_agent="arsenalamerica-branches")
 
-if st.checkbox('Show raw data'):
-    st.subheader('Raw data')
-    st.write(data)
+logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
 
-st.subheader('Number of pickups by hour')
-hist_values = np.histogram(data[DATE_COLUMN].dt.hour, bins=24, range=(0,24))[0]
-st.bar_chart(hist_values)
+sheet_url = st.secrets["gsheets"]["private_gsheets_url"]
+branches_sheet = 'FormResponses!A:Y'
+coordinates_sheet = 'Coordinates!A:E'
 
-# Some number in the range 0-23
-hour_to_filter = st.slider('hour', 0, 23, 17)
-filtered_data = data[data[DATE_COLUMN].dt.hour == hour_to_filter]
+def create_connection():
+    credentials = service_account.Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"], 
+    scopes=["https://www.googleapis.com/auth/spreadsheets",],)
+    return credentials
 
-st.subheader('Map of all pickups at %s:00' % hour_to_filter)
-st.map(filtered_data)
+
+def write_data():
+    ...
+
+
+def get_data():
+    creds = create_connection()
+
+    try:
+        service = build('sheets', 'v4', credentials=creds, cache_discovery=False)
+        # Call the Sheets API
+        sheet = service.spreadsheets()
+        branches = sheet.values().get(spreadsheetId="1aMm4dHHmzA2Xc8uWnpUaU_5xVjjAIGHltn7jXl-OIjc",
+                                    range=branches_sheet).execute()
+        branches_data = branches.get('values', [])
+        coordinates = sheet.values().get(spreadsheetId="1aMm4dHHmzA2Xc8uWnpUaU_5xVjjAIGHltn7jXl-OIjc",
+                                    range=coordinates_sheet).execute()
+        coordinates_data = coordinates.get('values', [])
+
+        if not branches_data or not coordinates_data:
+            print('No data found.')
+            return
+
+        branches_df = pd.DataFrame(data=branches_data[1:], columns=branches_data[0])
+        coordinates_df = pd.DataFrame(data=coordinates_data[1:], columns=coordinates_data[0])
+        
+        df = branches_df.merge(coordinates_df, how='inner', left_on=['Branch Name', 'Pub Name'], right_on=['Branch Name', 'Pub Name'])
+        return df
+    except HttpError as err:
+        print(err)
+
+
+def main():
+    df = get_data()
+    df = df.rename(columns={'Latitude': 'latitude', 'Longitude': 'longitude'})
+    st.title('Arsenal America')
+    st.map(df)
+
+
+if __name__ == '__main__':
+    main()
