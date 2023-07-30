@@ -59,6 +59,7 @@ def get_data():
 def main():
     df = get_data()
     df = df.rename(columns={'Latitude': 'latitude', 'Longitude': 'longitude'})
+    df = df.astype({'latitude':'float','longitude':'float'})
     st.title('Arsenal America')
     st.map(df)
 
