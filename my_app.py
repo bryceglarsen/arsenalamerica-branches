@@ -61,7 +61,17 @@ def main():
     df = df.rename(columns={'Latitude': 'latitude', 'Longitude': 'longitude'})
     df = df.astype({'latitude':'float','longitude':'float'})
     st.title('Arsenal America')
-    st.map(df)
+    st.map(df, zoom=3)
+
+    states_df = df.groupby(by='Pub State')
+    states = dict(list(states_df))
+    for state in states:
+        state_pubs = states_df.get_group(state)
+        cities = list(set(state_pubs['Pub City'].tolist()))
+        cities.sort()
+        with st.expander(state):
+            for city in cities:
+                st.write(city)
 
 
 if __name__ == '__main__':
