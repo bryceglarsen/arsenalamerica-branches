@@ -52,6 +52,8 @@ def get_data():
         coordinates_df = pd.DataFrame(data=coordinates_data[1:], columns=coordinates_data[0])
         
         df = branches_df.merge(coordinates_df, how='inner', left_on=['Branch Name', 'Pub Name'], right_on=['Branch Name', 'Pub Name'])
+        df = df.sort_values('Timestamp').groupby(['Branch Name', 'Pub Name']).tail(1).reset_index(drop=True)
+        df = df.sort_values(['Pub State', 'Pub City']).reset_index(drop=True)
         return df
     except HttpError as err:
         print(err)
@@ -63,12 +65,33 @@ def main():
     df = df.astype({'latitude':'float','longitude':'float'})
     st.title('Arsenal America')
 
+    row1_col1, row1_col2 = st.columns([.25,.25])
+
+    state_options = list(set(df['Pub State']))
+    state_options.sort()
+    
+    with row1_col1:
+        STATE_SELECT = st.selectbox('If there is a branch in your state you can search for it below:',
+            ["Please select"] + state_options,
+            key='state_select'
+        )
+    with row1_col2:
+        def reset():
+            st.session_state.state_select = 'Please select'
+        st.text('')
+        st.text('')
+        st.button('Reset', on_click=reset)
+
+    # filter data based on selections
+    all_states = STATE_SELECT == 'Please select'
+    if not all_states:
+        df = df[df['Pub State'] == STATE_SELECT].reset_index()  
 
     icon_data = {
         "url": "https://image-service.onefootball.com/transform?w=128&dpr=2&image=https://images.onefootball.com/icons/teams/164/2.png",
-        "width": 128,
-        "height":128,
-        "anchorY": 128
+        "width": 64,
+        "height": 64,
+        "anchorY": 64
     }
 
     tooltip = {
@@ -80,8 +103,7 @@ def main():
     }
 
     df['icon_data'] = pd.Series([icon_data for x in range(len(df.index))])
-    # df['icon_data'] = icon_data
-    print(df)
+
     icon_layer = pdk.Layer(
         type="IconLayer",
         data=df,
@@ -92,9 +114,18 @@ def main():
         pickable=True
     )
 
-    view_state = pdk.data_utils.compute_view(df[["longitude", "latitude"]], 0.8)
-
-    # view = pdk.data_utils.compute_view(df[["longitude", "latitude"]], 3)
+    if all_states:
+        view_state = pdk.ViewState(longitude=-98.5,latitude=38.500, zoom=3)
+        # view_state = pdk.data_utils.compute_view(df[["longitude", "latitude"]], 1)
+    else: 
+        view_state = pdk.ViewState(
+            longitude=(
+                max(df['longitude']) - (
+                    max(df['longitude']) - 
+                    min(df['longitude'])
+            )/2),
+            latitude=max(df['latitude']), zoom=5
+        )
 
     r = pdk.Deck(
         map_style=None,
@@ -110,7 +141,7 @@ def main():
         state_pubs = states_df.get_group(state)
         cities = list(set(state_pubs['Pub City'].tolist()))
         cities.sort()
-        with st.expander(state):
+        with st.expander(state, not all_states):
             for city in cities:
                 st.write(city)
 
