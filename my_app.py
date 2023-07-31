@@ -30,6 +30,7 @@ def write_data():
     ...
 
 
+@st.cache_data(ttl=3600)
 def get_data():
     creds = create_connection()
 
@@ -138,12 +139,28 @@ def main():
     states_df = df.groupby(by='Pub State')
     states = dict(list(states_df))
     for state in states:
-        state_pubs = states_df.get_group(state)
-        cities = list(set(state_pubs['Pub City'].tolist()))
-        cities.sort()
+        state_pubs_df = states_df.get_group(state)
+        state_pubs_df = state_pubs_df.sort_values(by=['Branch Name', 'Pub City'])
+        pubs = list(state_pubs_df['Pub Name'].tolist())
+        pub_groups = zip(*(iter(pubs),) * 2) if len(pubs)>1 else [tuple(pubs)]
+
         with st.expander(state, not all_states):
-            for city in cities:
-                st.write(city)
+            for group in pub_groups:
+                col1, col2 = st.columns([1,1])
+                cols = [col1, col2]
+                for count, col in enumerate(cols):
+                    pub = group[count] if len(group) >= count+1 else None
+                    if pub:
+                        with col:
+                            pub_data = state_pubs_df[state_pubs_df['Pub Name']==pub].to_dict('records')[0]
+                            st.subheader(pub_data['Branch Name'])
+                            st.caption(pub)
+                            pub_col1, pub_col2, pub_col3 = st.columns([1,1,1])
+                            with pub_col1:
+                                st.markdown("[![Click me](./static/fb.png)](https://streamlit.io)")
+                            # with pub_col2:
+                            #     st.markdown("![Foo](http://www.google.com.au/images/nav_logo7.png)(http://google.com.au/)")
+                            #     st.image(image=img_nav, width=14)
 
 
 if __name__ == '__main__':
