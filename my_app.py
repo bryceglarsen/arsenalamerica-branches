@@ -4,6 +4,7 @@ import pandas as pd
 import logging
 
 import os.path
+import re
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -155,9 +156,40 @@ def main():
                             pub_data = state_pubs_df[state_pubs_df['Pub Name']==pub].to_dict('records')[0]
                             st.subheader(pub_data['Branch Name'])
                             st.caption(pub)
-                            pub_col1, pub_col2, pub_col3 = st.columns([1,1,1])
+                            pub_col1, pub_col2, pub_col3, _ = st.columns([1,1,1,5])
                             with pub_col1:
-                                st.markdown("[![Click me](./static/fb.png)](https://streamlit.io)")
+                                link_nav = re.sub(' ', '%20',
+                                        'https://www.google.com/maps/search/' + '+'.join([
+                                        pub_data.get('Pub Name'),
+                                        pub_data.get('Pub Address 1'),
+                                        pub_data.get('Pub City'),
+                                        pub_data.get('Pub State'),
+                                        pub_data.get('Pub ZIP Code'),
+                                    ])
+                                )
+                                st.markdown(
+                                        f'[<img src="./app/static/gmaps.png" height="21">]({link_nav})',
+                                        unsafe_allow_html=True,
+                                    )
+                                st.text('')
+                            with pub_col2:
+                                link_fb = pub_data.get('Branch Facebook Page')
+                                if link_fb:
+                                    link_fb = re.sub(r'^.*?facebook', 'https://facebook', link_fb)
+                                    st.markdown(
+                                        f'[<img src="./app/static/fb.png" height="21">]({link_fb})',
+                                        unsafe_allow_html=True,
+                                    )
+                                    st.text('')
+                            with pub_col3:
+                                link_twitter = pub_data.get('Branch Twitter Handle')
+                                if link_twitter:
+                                    link_twitter = f'https://twitter.com/{link_twitter}'
+                                    st.markdown(
+                                        f'[<img src="./app/static/twitter.png" height="21">]({link_twitter})',
+                                        unsafe_allow_html=True,
+                                    )
+                                    st.text('')
                             # with pub_col2:
                             #     st.markdown("![Foo](http://www.google.com.au/images/nav_logo7.png)(http://google.com.au/)")
                             #     st.image(image=img_nav, width=14)
